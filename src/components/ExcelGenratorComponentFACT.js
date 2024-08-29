@@ -3,7 +3,7 @@
 import { Workbook } from 'exceljs';
 import { saveAs } from 'file-saver';
 
-export const generateExcel = async (data, nom, date, deviscompteur, currentYear) => {
+export const generateExcelfact = async (data, nom, date) => {
   const workbook = new Workbook();
   const worksheet = workbook.addWorksheet('Sheet1');
 
@@ -44,7 +44,7 @@ export const generateExcel = async (data, nom, date, deviscompteur, currentYear)
   worksheet.getCell('A1').value = '';
 
   // Add text "Client : " at cell D10 and "Devis N°/ : " at cell D8
-  worksheet.getCell('D6').value = `Devis N°:${deviscompteur} - ${currentYear}`;
+  worksheet.getCell('D6').value = `Date : ${date}`;
   worksheet.getCell('D8').value = 'Client : ';
   worksheet.getCell('E8').value = nom;
   worksheet.getCell('E8').border = {
@@ -60,14 +60,15 @@ export const generateExcel = async (data, nom, date, deviscompteur, currentYear)
   worksheet.addRow([]);
 
   const headerRow = worksheet.addRow(['', 'DESIGNATION', 'Qte', 'Unité', 'PRIX U', 'PRIX T']);
-
+  var metrage=0;
   // Add data rows dynamically
   data.forEach(item => {
+    metrage=(((item.longeur/100)*(item.largeur/100))*item.nombrepieces);
     worksheet.addRow([
       '',
-      item.nomproduit,
-      item.nombrepieces,
-      'pcs',
+      `${item.nomproduit} ${item.nombrepieces}pc(${item.longeur}x${item.largeur})`,
+      metrage,
+      'm²',
       item.prix,
       item.prix * ((item.longeur / 100) * (item.largeur / 100)) * item.nombrepieces
     ]);
@@ -114,7 +115,20 @@ export const generateExcel = async (data, nom, date, deviscompteur, currentYear)
       };
     });
   });
-
+  worksheet.mergeCells('B24:E24');
+  worksheet.getCell('B24').value = "Total";
+  worksheet.getCell('B24').border = {
+    top: { style: null },
+    left: { style: null },
+    bottom: { style: null },
+    right: { style: null },
+  };
+  worksheet.mergeCells('E27:F27');
+  worksheet.getCell('E27').value = "Signature et Cachet";
+  worksheet.getCell('E27').alignment = {
+    horizontal: 'Left', // Center horizontally
+     // Center vertically
+  };
   worksheet.mergeCells('B34:F34');
   const mergedCell = worksheet.getCell('B34');
   mergedCell.value = 'Merci de Votre Confiance';
@@ -141,31 +155,8 @@ export const generateExcel = async (data, nom, date, deviscompteur, currentYear)
     horizontal: 'center', // Center horizontally
     vertical: 'middle'   // Center vertically
   };
-  worksheet.mergeCells('B21:D24');
-  const mergedRange = worksheet.getCell('B21');
-  mergedRange.value = "Total HT"
-  mergedRange.alignment = { vertical: 'top', horizontal: 'center' };
-  mergedRange.font = { size: 14, bold: true };
-  for (let row = 21; row <= 24; row++) {
-    for (let col = 5; col <= 6; col++) { // Columns E and F are indices 5 and 6
-      const cell = worksheet.getCell(row, col);
-      cell.border = {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' },
-      };
-    }
-  }
-  const cellE22 = worksheet.getCell('E22');
-  cellE22.value = 'TVA 19%';
-  const cellE23 = worksheet.getCell('E23');
-  cellE23.value = 'D.TIMBRE';
-  const cellE24 = worksheet.getCell('E24');
-  cellE24.value = 'TOTAL TTC';
-  cellE22.font = { bold: true };
-  cellE23.font = { bold: true };
-  cellE24.font = { bold: true };
+
+  
   worksheet.eachRow({ includeEmpty: true }, (row) => {
     const cell = row.getCell(1); // Column A is index 1
     cell.border = {
@@ -180,13 +171,33 @@ export const generateExcel = async (data, nom, date, deviscompteur, currentYear)
     }; // Remove fill
     // Remove protection
   });
-  const bigcell = worksheet.getCell('B21');
-  bigcell.border = {
-    top: { style: 'thin' },
-    left: { style: 'thin' },
-    bottom: { style: 'thin' },
-    right: { style: 'thin' },
-  };
+  worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+    // Only apply styles to rows from 13 to 24
+    if (rowNumber >= 13 && rowNumber <= 24) {
+      // Define the columns that need styling (columns 2, 3, and 4)
+      const columnsToStyle = [2, 3, 4,5,6];
+  
+      columnsToStyle.forEach((colIndex) => {
+        const cell = row.getCell(colIndex);
+        
+        // Apply border styles to each cell
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+  
+        // Remove fill patterns for each cell
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'none',
+        };
+      });
+    }
+  });
+  worksheet.getColumn('E').numFmt = '#,##0.000 ".د.ت"';
+  worksheet.getColumn('F').numFmt = '#,##0.000 ".د.ت"';
   const CL1 = worksheet.getCell('D6');
   const CL2 = worksheet.getCell('D8');
   CL1.border = {
@@ -207,15 +218,17 @@ export const generateExcel = async (data, nom, date, deviscompteur, currentYear)
     bottom: { style: null },
     right: { style: null },
   };
+  worksheet.getCell('F24').value = { formula: 'SUM(F13:F23)' };
 
-  worksheet.getCell('F21').value = { formula: 'SUM(F13:F20)' };
-  worksheet.getCell('F21').numFmt = '0.000';
-  worksheet.getCell('F22').value = { formula: 'F21 * 0.19' };
-  worksheet.getCell('F22').numFmt = '0.000';
-  worksheet.getCell('F23').value = 1.000;
-  worksheet.getCell('F23').numFmt = '0.000';
-  worksheet.getCell('F24').value = { formula: 'SUM(F21:F23)' };
-  worksheet.getCell('F24').numFmt = '0.000';
+  worksheet.pageSetup.margins = {
+    left: 0.25,
+    right: 0.25,    
+    top: 0.75,
+    bottom: 0.75,
+    header: 0.3,
+    footer: 0.3
+};
+ 
   // Create a blob from the workbook and save it
   const buffer = await workbook.xlsx.writeBuffer();
   saveAs(new Blob([buffer]), 'generated_excel.xlsx');
